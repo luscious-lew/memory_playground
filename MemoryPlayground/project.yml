@@ -1,0 +1,22 @@
+name: MemoryPlayground
+options:
+  createIntermediateGroups: true
+targets:
+  MemoryPlayground:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: MemoryPlayground/MemoryPlayground
+        excludes:
+          - Resources/SampleData
+    resources:
+      - path: MemoryPlayground/MemoryPlayground/Resources
+    frameworks:
+      - Contacts
+    settings:
+      INFOPLIST_FILE: MemoryPlayground/MemoryPlayground/Resources/Info.plist
+      PRODUCT_BUNDLE_IDENTIFIER: com.example.MemoryPlayground
+      SWIFT_VERSION: 5.9
+      CODE_SIGN_STYLE: Automatic
+      LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"

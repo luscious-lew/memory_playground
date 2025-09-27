@@ -1,0 +1,23 @@
+[
+  {
+    "id": "2E3F1F6C-1234-4F0D-A9D0-ABCDEF123456",
+    "timestamp": "2024-08-18T18:30:00Z",
+    "speaker": "Lewis",
+    "text": "Omi just captured the most chaotic sprint retrospective.",
+    "source": "mock"
+  },
+  {
+    "id": "7B1E954B-9876-4B0A-A4D5-1234567890AB",
+    "timestamp": "2024-08-18T18:46:00Z",
+    "speaker": "Taylor",
+    "text": "We should totally turn those into a comic strip for the demo.",
+    "source": "mock"
+  },
+  {
+    "id": "FF89F6A9-5555-4C7B-B1A2-CAFEBABE2222",
+    "timestamp": "2024-08-18T19:02:00Z",
+    "speaker": "Lewis",
+    "text": "Deal. I'll build the Memory Playground remix engine tonight.",
+    "source": "mock"
+  }
+]
