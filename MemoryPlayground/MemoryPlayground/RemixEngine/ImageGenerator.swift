@@ -30,7 +30,7 @@ struct ImageGenerator {
     init(apiKey: String?,
          organizationID: String? = nil,
          projectID: String? = nil,
-         model: String = "gpt-4.1-mini",
+         model: String = "gpt-image-1",
          baseURL: URL = URL(string: "https://api.openai.com/v1")!,
          session: URLSession = .shared) {
         self.apiKey = apiKey
@@ -41,12 +41,12 @@ struct ImageGenerator {
         self.session = session
     }
 
-    func generateImage(prompt: String, size: String = "1024x1024") async throws -> Data {
+    func generateImage(prompt: String, size: String = "1024x1024", quality: String = "high") async throws -> Data {
         guard let apiKey else {
             throw ImageError.missingAPIKey
         }
 
-        var request = URLRequest(url: baseURL.appendingPathComponent("responses"))
+        var request = URLRequest(url: baseURL.appendingPathComponent("images/generations"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -57,22 +57,18 @@ struct ImageGenerator {
             request.addValue(projectID, forHTTPHeaderField: "OpenAI-Project")
         }
 
-        struct Tool: Encodable {
-            let type: String
-        }
-
         struct Payload: Encodable {
             let model: String
-            let input: String
-            let tools: [Tool]
-            let tool_choice: Tool?
+            let prompt: String
+            let size: String
+            let quality: String?
         }
 
         let payload = Payload(
             model: model,
-            input: prompt + "\n\nImage size: \(size)",
-            tools: [Tool(type: "image_generation")],
-            tool_choice: Tool(type: "image_generation")
+            prompt: prompt,
+            size: size,
+            quality: quality
         )
 
         request.httpBody = try JSONEncoder().encode(payload)
@@ -91,24 +87,10 @@ struct ImageGenerator {
             throw ImageError.decodingFailed
         }
 
-        if let output = json["output"] as? [[String: Any]] {
-            for item in output {
-                if let type = item["type"] as? String, type == "image_generation_call" {
-                    if let base64 = item["result"] as? String, let imageData = Data(base64Encoded: base64) {
-                        return imageData
-                    }
-                }
-                if let content = item["content"] as? [[String: Any]] {
-                    for block in content {
-                        if let type = block["type"] as? String, type == "image" || type == "image_generation_call" {
-                            if let base64 = block["image_base64"] as? String, let imageData = Data(base64Encoded: base64) {
-                                return imageData
-                            }
-                            if let result = block["result"] as? String, let imageData = Data(base64Encoded: result) {
-                                return imageData
-                            }
-                        }
-                    }
+        if let dataArray = json["data"] as? [[String: Any]] {
+            for entry in dataArray {
+                if let base64 = entry["b64_json"] as? String, let imageData = Data(base64Encoded: base64) {
+                    return imageData
                 }
             }
         }

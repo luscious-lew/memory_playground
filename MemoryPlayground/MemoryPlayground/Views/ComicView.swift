@@ -30,7 +30,7 @@ struct ComicView: View {
 #else
             .tabViewStyle(.page(indexDisplayMode: .automatic))
 #endif
-            .frame(height: 520)
+            .frame(height: 760)
         }
         .padding(44)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -45,7 +45,7 @@ struct ComicView: View {
 
             ZStack(alignment: .bottomLeading) {
                 panelImage(for: panel)
-                    .frame(height: 320)
+                    .frame(height: 700)
                     .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 26, style: .continuous)

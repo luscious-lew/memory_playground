@@ -61,7 +61,13 @@ Return a JSON object with this exact structure:
     }
 
     func generateRoast(conversations: [ConversationItem]) async -> String {
-        let extra = "Deliver exactly five snappy roast bullets. Each bullet must start with '-' and stay under 140 characters, focusing on habits and highlights from the transcript."
+        let extra = """
+Write exactly three roast lines. Each should:
+- begin with "- "
+- riff on a distinct theme (work hustle, social antics, self-care, etc.) inspired by the transcript rather than quoting it
+- keep a playful narrative tone while roasting "Lewis"
+- stay under 160 characters
+"""
         return await run(
             prompt: prompt(for: conversations, style: "playful roast of the week's events", extraInstructions: extra),
             system: "You are a roast comic who keeps jokes affectionate yet spicy. Respond only with the bullet list, no intro or outro.",

@@ -118,6 +118,7 @@ actor IMessageDataSource {
             let rawDate = sqlite3_column_int64(statement, 1)
             let isFromMe = sqlite3_column_int(statement, 2) == 1
             let rawHandle = sqlite3_column_text(statement, 3).flatMap { String(cString: $0) }
+            let chatGuid = sqlite3_column_text(statement, 6).flatMap { String(cString: $0) }
 
             // Try text field first, then attributed body
             var body = ""
@@ -163,7 +164,9 @@ actor IMessageDataSource {
                 speaker: displayName,
                 text: body,
                 source: .iMessage,
-                participantIdentifier: isFromMe ? nil : rawHandle
+                participantIdentifier: isFromMe ? nil : rawHandle,
+                chatGUID: chatGuid,
+                isFromMe: isFromMe
             )
             items.append(item)
         }

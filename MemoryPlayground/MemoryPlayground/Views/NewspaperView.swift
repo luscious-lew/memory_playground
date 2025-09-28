@@ -50,29 +50,20 @@ struct NewspaperView: View {
 
     private func leadSection(_ content: DailyNewspaper) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Lead story is already shown in masthead, so show additional content or skip this section
             if let lead = content.leadStory ?? content.featureStories.first {
-                VStack(alignment: .leading, spacing: 0) {
-                    if !lead.subheadline.isEmpty {
-                        Text(lead.subheadline)
-                            .font(.system(size: 18, weight: .semibold, design: .serif))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    let paragraphs = paragraphs(from: lead.body)
-                    if paragraphs.isEmpty {
-                        Text(lead.body)
-                            .font(.system(size: 17, design: .serif))
-                            .foregroundStyle(.black)
-                            .lineSpacing(5)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(paragraphs, id: \.self) { paragraph in
-                                Text(paragraph)
-                                    .font(.system(size: 17, design: .serif))
-                                    .foregroundStyle(.black)
-                                    .lineSpacing(5)
-                            }
+                let paragraphs = paragraphs(from: lead.body)
+                if paragraphs.isEmpty {
+                    Text(lead.body)
+                        .font(.system(size: 17, design: .serif))
+                        .foregroundStyle(.black)
+                        .lineSpacing(5)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(paragraphs, id: \.self) { paragraph in
+                            Text(paragraph)
+                                .font(.system(size: 17, design: .serif))
+                                .foregroundStyle(.black)
+                                .lineSpacing(5)
                         }
                     }
                 }
@@ -105,13 +96,13 @@ struct NewspaperView: View {
         }
     }
 
-    private func storyCard(for story: DailyNewspaper.Story, emphasis: Bool) -> some View {
+    private func storyCard(for story: DailyNewspaper.Story, emphasis: Bool, showSubheadline: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(story.headline)
                 .font(emphasis ? .system(size: 28, weight: .bold, design: .serif)
                                : .system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(.black)
-            if !story.subheadline.isEmpty {
+            if showSubheadline, !story.subheadline.isEmpty {
                 Text(story.subheadline)
                     .font(.system(size: 17, weight: .medium, design: .serif))
                     .foregroundStyle(.secondary)

@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 struct RoastView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -12,15 +17,6 @@ struct RoastView: View {
                     .foregroundStyle(LinearGradient(colors: [.orange, .pink, .red], startPoint: .leading, endPoint: .trailing))
                     .shadow(color: .black.opacity(0.25), radius: 18, x: 0, y: 12)
                 roastContent
-                    .font(.system(size: 20, weight: .regular, design: .default))
-                    .lineSpacing(8)
-                    .padding(36)
-                    .frame(maxWidth: 720, alignment: .leading)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 32, style: .continuous)
-                            .stroke(.white.opacity(0.15), lineWidth: 1)
-                    )
                 Button(action: viewModel.regenerateRoast) {
                     if viewModel.isGeneratingRoast {
                         ProgressView()
@@ -70,22 +66,158 @@ extension RoastView {
     @ViewBuilder
     private var roastContent: some View {
         if roast.isEmpty {
-            Text(placeholder)
-        } else if !roastBullets.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                ForEach(Array(roastBullets.enumerated()), id: \.offset) { _, line in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("•")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(.orange)
-                        Text(line)
-                            .font(.system(size: 19, weight: .medium))
-                    }
-                }
+            VStack {
+                Text(placeholder)
+                    .font(.system(size: 18))
+                    .padding(36)
             }
+            .frame(maxWidth: 720)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+        } else if !roastBullets.isEmpty {
+            thematicRoastLayout(messages: Array(roastBullets.prefix(3)))
         } else {
             Text(roast)
         }
+    }
+
+    @ViewBuilder
+    private func thematicRoastLayout(messages: [String]) -> some View {
+        let roasts = paddedRoasts(messages)
+        VStack {
+            ZStack(alignment: .center) {
+                RoundedRectangle(cornerRadius: 36, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 36, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    )
+
+                GeometryReader { geo in
+                    let width = geo.size.width
+                    let height = geo.size.height
+                    let topSpacing = height * 0.15
+                    let bubbleWidth = min(width * 0.5, 360)
+
+                    VStack(spacing: height * 0.2) {
+                        HStack(alignment: .top, spacing: width * 0.16) {
+                            RoastBubbleView(message: roasts[0], avatarColor: .pink)
+                                .frame(width: bubbleWidth)
+                            RoastBubbleView(message: roasts[1], avatarColor: .orange)
+                                .frame(width: bubbleWidth)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                        RoastBubbleView(message: roasts[2], avatarColor: .purple)
+                            .frame(width: min(width * 0.6, 420))
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .padding(.top, topSpacing)
+                    .padding(.horizontal, width * 0.12)
+
+                    centralProfile
+                        .frame(width: 170, height: 170)
+                        .position(x: width / 2, y: height * 0.46)
+                }
+                .frame(height: 520)
+                .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+            }
+            .frame(maxWidth: 900)
+        }
+    }
+
+    private func paddedRoasts(_ roasts: [String]) -> [String] {
+        if roasts.count >= 3 { return Array(roasts.prefix(3)) }
+        var result = roasts
+        while result.count < 3 {
+            result.append("Waiting for more roast material…")
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private var centralProfile: some View {
+        if let profileImage = platformProfileImage() {
+            profileImage
+                .resizable()
+                .scaledToFill()
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 6))
+                .shadow(radius: 16)
+        } else {
+            ZStack {
+                Circle().fill(Color.white.opacity(0.2))
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.white)
+                    .padding(18)
+            }
+        }
+    }
+
+    private func platformProfileImage() -> Image? {
+        #if os(macOS)
+        if let nsImage = NSImage(named: "roast_profile") {
+            return Image(nsImage: nsImage)
+        }
+        #else
+        if let uiImage = UIImage(named: "roast_profile") {
+            return Image(uiImage: uiImage)
+        }
+        #endif
+        return nil
+    }
+}
+
+private struct RoastBubbleView: View {
+    let message: String
+    let avatarColor: Color
+
+    var body: some View {
+        VStack(spacing: 12) {
+            SpeechBubble()
+                .fill(Color.white.opacity(0.95))
+                .overlay(
+                    Text(message)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                )
+                .shadow(color: .black.opacity(0.1), radius: 6, y: 4)
+
+            Circle()
+                .fill(avatarColor.gradient)
+                .frame(width: 58, height: 58)
+                .overlay(
+                    Image(systemName: "person.fill")
+                        .foregroundStyle(.white)
+                        .font(.system(size: 24, weight: .bold))
+                )
+                .shadow(radius: 5)
+        }
+    }
+}
+
+private struct SpeechBubble: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let cornerRadius: CGFloat = 18
+        let tailWidth: CGFloat = 20
+        let tailHeight: CGFloat = 14
+
+        let bubbleRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - tailHeight)
+        path.addRoundedRect(in: bubbleRect, cornerSize: CGSize(width: cornerRadius, height: cornerRadius))
+
+        let tailStartX = bubbleRect.midX - tailWidth / 2
+        path.move(to: CGPoint(x: tailStartX, y: bubbleRect.maxY))
+        path.addLine(to: CGPoint(x: tailStartX + tailWidth / 2, y: bubbleRect.maxY + tailHeight))
+        path.addLine(to: CGPoint(x: tailStartX + tailWidth, y: bubbleRect.maxY))
+        path.closeSubpath()
+
+        return path
     }
 }
 

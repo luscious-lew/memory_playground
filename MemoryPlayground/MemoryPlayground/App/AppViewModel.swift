@@ -1,5 +1,10 @@
 import Foundation
 import os
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -16,11 +21,16 @@ final class AppViewModel: ObservableObject {
     @Published var triviaQuestions: [TriviaQuestion] = []
     @Published var comicPanels: [ComicPanel] = []
     @Published var futureYou: String = ""
+    @Published var futureYouPortrait: Data? = nil
     @Published var loadingState: LoadingState = .idle
     @Published var isDemoModeEnabled = false
     @Published var isGeneratingRoast = false
     @Published var onboardingState: OnboardingState = []
     @Published var ingestionDiagnostics: IngestionDiagnostics = .init()
+    @Published var textContactSummaries: [TextContactSummary] = []
+    @Published var voiceConversations: [VoiceConversationSummary] = []
+    @Published var isLoadingVoiceConversations = false
+    @Published var voiceConversationsError: String?
 
     private let ingestionManager: DataIngestionManager
     private let remixEngine: RemixEngine
@@ -28,11 +38,29 @@ final class AppViewModel: ObservableObject {
     private let demoLoader = DemoDataLoader()
     private let logger = Logger(subsystem: "com.memoryplayground.app", category: "AppViewModel")
     private let onboardingChecker = OnboardingChecker()
+    private let voiceService: VoiceConversationService?
+    private var voiceDetailCache: [UUID: VoiceConversationDetail] = [:]
 
-    init(ingestionManager: DataIngestionManager, remixEngine: RemixEngine, ingestLimit: Int) {
+    private static func loadImage(named name: String) -> Data? {
+#if canImport(AppKit)
+        guard let image = NSImage(named: name),
+              let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let data = bitmap.representation(using: .png, properties: [:]) else { return nil }
+        return data
+#elseif canImport(UIKit)
+        return UIImage(named: name)?.pngData()
+#else
+        return nil
+#endif
+    }
+
+    init(ingestionManager: DataIngestionManager, remixEngine: RemixEngine, ingestLimit: Int, voiceService: VoiceConversationService? = nil) {
         self.ingestionManager = ingestionManager
         self.remixEngine = remixEngine
         self.ingestLimit = ingestLimit
+        self.voiceService = voiceService
+        self.futureYouPortrait = Self.loadImage(named: "future_you_portrait")
     }
 
     convenience init() {
@@ -71,7 +99,12 @@ final class AppViewModel: ObservableObject {
         let gptClient = GPTClient(apiKey: gptKey, organizationID: organizationID, projectID: projectID)
         let imageGenerator = ImageGenerator(apiKey: gptKey, organizationID: organizationID, projectID: projectID)
         let remixEngine = RemixEngine(gptClient: gptClient, imageGenerator: imageGenerator)
-        self.init(ingestionManager: ingestion, remixEngine: remixEngine, ingestLimit: iMessageConfig.limit)
+        let supabaseKey = environment["SUPABASE_SERVICE_KEY"] ?? environment["SUPABASE_ANON_KEY"]
+        let voiceService = supabaseKey.map { VoiceConversationService(apiKey: $0) }
+        if supabaseKey == nil {
+            initLogger.info("SUPABASE_SERVICE_KEY not provided; voice conversations will be disabled.")
+        }
+        self.init(ingestionManager: ingestion, remixEngine: remixEngine, ingestLimit: iMessageConfig.limit, voiceService: voiceService)
         self.onboardingState = onboardingChecker.currentState()
     }
 
@@ -121,15 +154,23 @@ final class AppViewModel: ObservableObject {
                     self.ingestionDiagnostics = IngestionDiagnostics(status: .success(count: items.count), sampleMessages: Array(items.prefix(3)))
                     logger.info("Loaded real data: \(items.count) items, first 3: \(items.prefix(3).map { $0.text.prefix(30) })")
                 }
+                self.rebuildTextSummaries()
             }
 
             if conversations.isEmpty {
                 loadingState = .failed("No conversation history available. Add mock data or check permissions.")
+                if voiceService != nil {
+                    await loadVoiceConversations()
+                }
                 return
             }
 
             await generateRemixes()
             loadingState = .loaded
+
+            if voiceService != nil {
+                await loadVoiceConversations()
+            }
         }
     }
 
@@ -217,10 +258,92 @@ final class AppViewModel: ObservableObject {
             self.triviaQuestions = trivia
             self.comicPanels = comic
             self.futureYou = future
+            self.rebuildTextSummaries()
 
             let paperHeadline = newspaper.leadHeadline ?? "n/a"
             logger.info("Remixes generated - Newspaper lead: \(paperHeadline, privacy: .public), Roast: \(roast.prefix(50))..., Trivia: \(trivia.count) questions, Comic: \(comic.count) panels, Future: \(future.prefix(50))...")
         }
+    }
+
+    func messages(for contactID: String) -> [ConversationItem] {
+        conversations.filter { contactIdentifier(for: $0) == contactID }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    func contactSummary(for contactID: String) -> TextContactSummary? {
+        textContactSummaries.first { $0.id == contactID }
+    }
+
+    func voiceConversationDetail(for id: UUID) async -> VoiceConversationDetail? {
+        if let cached = voiceDetailCache[id] {
+            return cached
+        }
+        guard let voiceService else { return nil }
+        do {
+            async let conversation = voiceService.fetchConversationWithStats(id: id)
+            async let segments = voiceService.fetchSegments(for: id)
+            async let plugins = voiceService.fetchPluginContent(for: id)
+            let detail = try await VoiceConversationDetail(conversation: conversation, segments: segments, pluginContent: plugins)
+            voiceDetailCache[id] = detail
+            return detail
+        } catch {
+            logger.error("Failed to load voice conversation detail: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func loadVoiceConversations() async {
+        guard let voiceService else { return }
+        if isLoadingVoiceConversations { return }
+        isLoadingVoiceConversations = true
+        voiceConversationsError = nil
+        do {
+            let conversations = try await voiceService.fetchLatestConversations()
+            voiceConversations = conversations
+        } catch {
+            voiceConversationsError = error.localizedDescription
+            logger.error("Failed to load voice conversations: \(error.localizedDescription, privacy: .public)")
+        }
+        isLoadingVoiceConversations = false
+    }
+
+    private func rebuildTextSummaries() {
+        let grouped = Dictionary(grouping: conversations) { contactIdentifier(for: $0) }
+            .filter { !$0.key.isEmpty && $0.key != "self" }
+
+        let summaries = grouped.compactMap { key, items -> TextContactSummary? in
+            guard let last = items.max(by: { $0.timestamp < $1.timestamp }) else { return nil }
+            let sorted = items.sorted { $0.timestamp > $1.timestamp }
+            let preview = sorted.first?.text ?? ""
+            let displayName: String
+            if let other = sorted.first(where: { !$0.isFromMe })?.speaker, other != "You" {
+                displayName = other
+            } else if let any = sorted.first?.speaker, any != "You" {
+                displayName = any
+            } else {
+                displayName = "You"
+            }
+            return TextContactSummary(
+                id: key,
+                displayName: displayName,
+                messageCount: items.count,
+                lastMessage: last.timestamp,
+                preview: preview
+            )
+        }
+
+        textContactSummaries = summaries.sorted { $0.lastMessage > $1.lastMessage }
+    }
+
+    private func contactIdentifier(for item: ConversationItem) -> String {
+        if let chat = item.chatGUID, !chat.isEmpty {
+            return chat
+        }
+        if let identifier = item.participantIdentifier, !identifier.isEmpty {
+            return identifier
+        }
+        // fallback to speaker name if we truly have no identifiers
+        return item.speaker
     }
 }
 
@@ -262,9 +385,9 @@ struct DemoDataLoader {
     private func fallback() -> [ConversationItem] {
         let now = Date()
         return [
-            ConversationItem(timestamp: now.addingTimeInterval(-3600), speaker: "Lewis", text: "We should remix the Omi logs into something fun tonight!", source: .mock),
-            ConversationItem(timestamp: now.addingTimeInterval(-1800), speaker: "Omi", text: "Reminder: you promised to stretch before coding.", source: .mock),
-            ConversationItem(timestamp: now.addingTimeInterval(-600), speaker: "Lewis", text: "Okay fine, but only if the newspaper roasts me.", source: .mock)
+            ConversationItem(timestamp: now.addingTimeInterval(-3600), speaker: "Lewis", text: "We should remix the Omi logs into something fun tonight!", source: .mock, participantIdentifier: "lewis@example.com", chatGUID: "mock-chat", isFromMe: true),
+            ConversationItem(timestamp: now.addingTimeInterval(-1800), speaker: "Omi", text: "Reminder: you promised to stretch before coding.", source: .mock, participantIdentifier: "omi@example.com", chatGUID: "mock-chat", isFromMe: false),
+            ConversationItem(timestamp: now.addingTimeInterval(-600), speaker: "Lewis", text: "Okay fine, but only if the newspaper roasts me.", source: .mock, participantIdentifier: "lewis@example.com", chatGUID: "mock-chat", isFromMe: true)
         ]
     }
 }

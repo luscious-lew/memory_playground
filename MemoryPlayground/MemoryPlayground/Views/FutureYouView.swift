@@ -1,11 +1,18 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 struct FutureYouView: View {
     let message: String
+    let portraitData: Data?
     @State private var hueRotation: Angle = .degrees(0)
 
     var body: some View {
         VStack(spacing: 36) {
+            portrait
             Text("Message From Future You")
                 .font(.system(size: 44, weight: .bold, design: .default))
                 .foregroundStyle(.white)
@@ -43,6 +50,31 @@ struct FutureYouView: View {
 
     private var placeholder: String {
         "Dear present-me, remember: hydrate, celebrate small wins, and let GPT take the night shift."
+    }
+
+    @ViewBuilder
+    private var portrait: some View {
+        if let portraitData, let image = makeImage(from: portraitData) {
+            image
+                .resizable()
+                .scaledToFill()
+                .frame(width: 220, height: 220)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 6))
+                .shadow(radius: 18)
+        }
+    }
+
+    private func makeImage(from data: Data) -> Image? {
+#if canImport(AppKit)
+        guard let nsImage = NSImage(data: data) else { return nil }
+        return Image(nsImage: nsImage)
+#elseif canImport(UIKit)
+        guard let uiImage = UIImage(data: data) else { return nil }
+        return Image(uiImage: uiImage)
+#else
+        return nil
+#endif
     }
 }
 

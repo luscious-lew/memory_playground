@@ -7,6 +7,7 @@ struct OmiClient {
             let speaker: String?
             let text: String
             let startedAt: Date?
+            let isUser: Bool?
         }
 
         let id: String
@@ -15,6 +16,7 @@ struct OmiClient {
         let text: String?
         let utterances: [Utterance]?
         let entries: [Utterance]?
+        let isUser: Bool?
     }
 
     enum OmiError: LocalizedError {
@@ -100,7 +102,9 @@ struct OmiClient {
                             speaker: utterance.speaker ?? transcript.speaker ?? "Omi",
                             text: spoken,
                             source: .omi,
-                            participantIdentifier: utterance.speaker
+                            participantIdentifier: utterance.speaker,
+                            chatGUID: transcript.id,
+                            isFromMe: utterance.isUser ?? false
                         )
                     }
                 }
@@ -112,7 +116,9 @@ struct OmiClient {
                     speaker: transcript.speaker ?? "Omi",
                     text: spoken,
                     source: .omi,
-                    participantIdentifier: transcript.speaker
+                    participantIdentifier: transcript.speaker,
+                    chatGUID: transcript.id,
+                    isFromMe: transcript.isUser ?? false
                 )]
             }
     }

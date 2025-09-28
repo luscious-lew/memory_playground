@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct DashboardView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -24,10 +27,11 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 32) {
                         header
                         diagnosticsPanel
+                        actionPills
                         remixGrid
                     }
                     .padding(.horizontal, 48)
-                    .padding(.vertical, 36)
+                    .padding(.vertical, 28)
                     .overlay(alignment: .bottom) {
                         if shouldWarnAboutFullDiskAccess {
                             fullDiskAccessWarning
@@ -92,7 +96,7 @@ struct DashboardView: View {
         let columns = [GridItem(.flexible()), GridItem(.flexible())]
         return ScrollView {
             LazyVGrid(columns: columns, spacing: 28) {
-                ForEach(RemixDestination.allCases, id: \.self) { destination in
+                ForEach(RemixDestination.featureTiles, id: \.self) { destination in
                     Button {
                         navigate(to: destination)
                     } label: {
@@ -106,7 +110,7 @@ struct DashboardView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 20)
+                    .padding(.vertical, 20)
         }
     }
 
@@ -144,9 +148,11 @@ struct DashboardView: View {
     }
 
     private func openFullDiskAccessSettings() {
+        #if canImport(AppKit)
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
             NSWorkspace.shared.open(url)
         }
+        #endif
     }
 
     private var diagnosticsPanel: some View {
@@ -165,6 +171,28 @@ struct DashboardView: View {
             // }
             EmptyView()
         }
+    }
+
+    private var actionPills: some View {
+        HStack(spacing: 14) {
+            pillButton(title: "Text Messages", systemImage: "bubble.left.and.bubble.right.fill", destination: .textMessages)
+            pillButton(title: "Voice Conversations", systemImage: "waveform", destination: .voiceConversations)
+            Spacer()
+        }
+    }
+
+    private func pillButton(title: String, systemImage: String, destination: RemixDestination) -> some View {
+        Button {
+            navigate(to: destination)
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(.white.opacity(0.18), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
     }
 
     @ViewBuilder
@@ -222,12 +250,18 @@ struct DashboardView: View {
     }
 }
 
-enum RemixDestination: Hashable, CaseIterable {
+enum RemixDestination: Hashable {
     case newspaper
     case roast
     case trivia
     case comic
     case future
+    case textMessages
+    case textThread(String)
+    case voiceConversations
+    case voiceConversation(UUID)
+
+    static let featureTiles: [RemixDestination] = [.newspaper, .roast, .trivia, .comic, .future]
 
     var title: String {
         switch self {
@@ -236,6 +270,10 @@ enum RemixDestination: Hashable, CaseIterable {
         case .trivia: return "Context Trivia"
         case .comic: return "Comic Generator"
         case .future: return "Future You"
+        case .textMessages: return "Text Messages"
+        case .textThread: return "Message Thread"
+        case .voiceConversations: return "Voice Conversations"
+        case .voiceConversation: return "Voice Conversation"
         }
     }
 
@@ -246,6 +284,10 @@ enum RemixDestination: Hashable, CaseIterable {
         case .trivia: return "Jeopardy from inside jokes"
         case .comic: return "Panels starring your crew"
         case .future: return "Advice from tomorrow"
+        case .textMessages: return "Browse and revisit message threads"
+        case .textThread: return "Dive into the conversation"
+        case .voiceConversations: return "Listen back to voice transcripts"
+        case .voiceConversation: return "Conversation details"
         }
     }
 
@@ -256,6 +298,10 @@ enum RemixDestination: Hashable, CaseIterable {
         case .trivia: return "questionmark.diamond.fill"
         case .comic: return "rectangle.3.offgrid.fill"
         case .future: return "sparkles"
+        case .textMessages: return "message.fill"
+        case .textThread: return "bubble.left"
+        case .voiceConversations: return "waveform"
+        case .voiceConversation: return "waveform.circle"
         }
     }
 
@@ -271,6 +317,14 @@ enum RemixDestination: Hashable, CaseIterable {
             return LinearGradient(colors: [.yellow, .orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .future:
             return LinearGradient(colors: [.teal, .blue, .black], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .textMessages:
+            return LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .textThread:
+            return LinearGradient(colors: [.blue.opacity(0.8), .green.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .voiceConversations:
+            return LinearGradient(colors: [.purple.opacity(0.8), .cyan.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .voiceConversation:
+            return LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -281,6 +335,10 @@ enum RemixDestination: Hashable, CaseIterable {
         case .trivia: return "Trivia"
         case .comic: return "Comic"
         case .future: return "Future"
+        case .textMessages: return "Messages"
+        case .textThread: return "Thread"
+        case .voiceConversations: return "Voice"
+        case .voiceConversation: return "Voice Detail"
         }
     }
 }
@@ -306,7 +364,7 @@ private struct RemixDetailContainer: View {
                     .buttonStyle(.plain)
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
-                    ForEach(RemixDestination.allCases, id: \.self) { item in
+                    ForEach(RemixDestination.featureTiles, id: \.self) { item in
                         quickLink(destination: item)
                     }
                 }
@@ -325,7 +383,23 @@ private struct RemixDetailContainer: View {
         case .comic:
             ComicView(panels: viewModel.comicPanels)
         case .future:
-            FutureYouView(message: viewModel.futureYou)
+            FutureYouView(message: viewModel.futureYou, portraitData: viewModel.futureYouPortrait)
+        case .textMessages:
+            TextMessagesOverviewView { contactID in
+                path.append(.textThread(contactID))
+            }
+            .environmentObject(viewModel)
+        case .textThread(let contactID):
+            TextMessageThreadView(contactID: contactID)
+                .environmentObject(viewModel)
+        case .voiceConversations:
+            VoiceConversationsView { convoID in
+                path.append(.voiceConversation(convoID))
+            }
+            .environmentObject(viewModel)
+        case .voiceConversation(let id):
+            VoiceConversationDetailView(conversationID: id)
+                .environmentObject(viewModel)
         }
     }
 
@@ -341,6 +415,14 @@ private struct RemixDetailContainer: View {
             viewModel.regenerateComic()
         case .future:
             viewModel.regenerateFutureYou()
+        case .textMessages:
+            viewModel.refresh()
+        case .textThread:
+            break
+        case .voiceConversations:
+            Task { await viewModel.loadVoiceConversations() }
+        case .voiceConversation(let id):
+            Task { _ = await viewModel.voiceConversationDetail(for: id) }
         }
     }
 

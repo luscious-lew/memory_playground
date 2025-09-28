@@ -8,7 +8,9 @@ extension ConversationItem {
             speaker: newSpeaker,
             text: text,
             source: source,
-            participantIdentifier: participantIdentifier
+            participantIdentifier: participantIdentifier,
+            chatGUID: chatGUID,
+            isFromMe: isFromMe
         )
     }
 }
