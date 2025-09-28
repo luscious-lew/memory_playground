@@ -186,7 +186,7 @@ We welcome contributions! Areas of interest:
 
 ## 📝 License
 
-MIT License - See LICENSE file for details
+Open source
 
 ---
 
