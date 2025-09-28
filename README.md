@@ -201,6 +201,6 @@ Open source
 ## 🔗 Links
 
 - [GitHub Repository](https://github.com/luscious-lew/memory_playground)
-- [Demo Video](#) *(coming soon)*
+- [Demo Video](https://youtu.be/cw82zSpXozk)
 - [OpenAI GPT-5](https://openai.com)
 - [Omi Wearable](https://omi.me)
