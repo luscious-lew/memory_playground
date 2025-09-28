@@ -1,1 +1,8 @@
 .DS_Store
+MemoryPlayground/MemoryPlayground.xcodeproj/xcuserdata/
+*.xcuserdata/
+*.xcuserstate
+*.bak
+*.bak2
+BuildProducts/
+*.xcscheme

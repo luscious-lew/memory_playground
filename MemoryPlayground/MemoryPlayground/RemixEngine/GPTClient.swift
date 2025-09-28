@@ -164,8 +164,7 @@ struct GPTClient {
                         let reason = ((json["incomplete_details"] as? [String: Any])?["reason"] as? String) ?? "unknown"
                         logger.warning("GPT-5 response incomplete (reason: \(reason)). Returning partial output.")
                     }
-                    return collected.joined(separator: "
-")
+                    return collected.joined(separator: "\n")
                 }
                 if let status = json["status"] as? String, status != "completed" {
                     let reason = ((json["incomplete_details"] as? [String: Any])?["reason"] as? String) ?? "unknown"

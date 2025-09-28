@@ -20,3 +20,4 @@ targets:
       SWIFT_VERSION: 5.9
       CODE_SIGN_STYLE: Automatic
       LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+      CONFIGURATION_BUILD_DIR: "$(PROJECT_DIR)/BuildProducts/$(CONFIGURATION)"

@@ -11,7 +11,7 @@ struct RoastView: View {
                     .font(.system(size: 46, weight: .bold, design: .default))
                     .foregroundStyle(LinearGradient(colors: [.orange, .pink, .red], startPoint: .leading, endPoint: .trailing))
                     .shadow(color: .black.opacity(0.25), radius: 18, x: 0, y: 12)
-                Text(roast.isEmpty ? placeholder : roast)
+                roastContent
                     .font(.system(size: 20, weight: .regular, design: .default))
                     .lineSpacing(8)
                     .padding(36)
@@ -49,6 +49,44 @@ struct RoastView: View {
         "GPT-5 is still sharpening its jokes. For now, imagine your future self teasing you about debugging at 3 AM."
     }
 
+}
+
+extension RoastView {
+    private var normalizedRoast: String {
+        roast.replacingOccurrences(of: "•", with: "-")
+    }
+
+    private var roastBullets: [String] {
+        normalizedRoast
+            .components(separatedBy: CharacterSet.newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap { line in
+                guard line.hasPrefix("-") else { return nil }
+                let trimmed = line.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+    }
+
+    @ViewBuilder
+    private var roastContent: some View {
+        if roast.isEmpty {
+            Text(placeholder)
+        } else if !roastBullets.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(roastBullets.enumerated()), id: \.offset) { _, line in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("•")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(.orange)
+                        Text(line)
+                            .font(.system(size: 19, weight: .medium))
+                    }
+                }
+            }
+        } else {
+            Text(roast)
+        }
+    }
 }
 
 private struct AnimatedGradient: View {

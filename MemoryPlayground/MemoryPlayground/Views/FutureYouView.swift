@@ -10,7 +10,7 @@ struct FutureYouView: View {
                 .font(.system(size: 44, weight: .bold, design: .default))
                 .foregroundStyle(.white)
                 .shadow(radius: 10)
-            Text(message.isEmpty ? placeholder : message)
+            messageContent
                 .font(.system(size: 20, weight: .regular, design: .default))
                 .lineSpacing(10)
                 .padding(38)
@@ -43,5 +43,43 @@ struct FutureYouView: View {
 
     private var placeholder: String {
         "Dear present-me, remember: hydrate, celebrate small wins, and let GPT take the night shift."
+    }
+}
+
+extension FutureYouView {
+    private var normalizedMessage: String {
+        message.replacingOccurrences(of: "•", with: "-")
+    }
+
+    private var adviceBullets: [String] {
+        normalizedMessage
+            .components(separatedBy: CharacterSet.newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap { line in
+                guard line.hasPrefix("-") else { return nil }
+                let trimmed = line.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+    }
+
+    @ViewBuilder
+    fileprivate var messageContent: some View {
+        if message.isEmpty {
+            Text(placeholder)
+        } else if !adviceBullets.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(Array(adviceBullets.enumerated()), id: \.offset) { _, line in
+                    HStack(alignment: .top, spacing: 12) {
+                        Text("•")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text(line)
+                            .font(.system(size: 19, weight: .medium))
+                    }
+                }
+            }
+        } else {
+            Text(message)
+        }
     }
 }

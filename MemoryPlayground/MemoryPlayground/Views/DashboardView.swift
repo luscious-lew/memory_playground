@@ -3,27 +3,51 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @State private var path: [RemixDestination] = []
+    private var needsSetup: Bool {
+        let state = viewModel.onboardingState
+        return !state.contains(.apiKeysConfigured)
+    }
+
+    private var shouldWarnAboutFullDiskAccess: Bool {
+        !viewModel.onboardingState.contains(.fullDiskAccess)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
                 background
-                VStack(alignment: .leading, spacing: 32) {
-                    header
-                    remixGrid
+                if needsSetup {
+                    SetupChecklistView()
+                        .environmentObject(viewModel)
+                        .padding()
+                } else {
+                    VStack(alignment: .leading, spacing: 32) {
+                        header
+                        diagnosticsPanel
+                        remixGrid
+                    }
+                    .padding(.horizontal, 48)
+                    .padding(.vertical, 36)
+                    .overlay(alignment: .bottom) {
+                        if shouldWarnAboutFullDiskAccess {
+                            fullDiskAccessWarning
+                                .padding(.bottom, 12)
+                        }
+                    }
                 }
-                .padding(.horizontal, 48)
-                .padding(.vertical, 36)
             }
             .overlay(alignment: .topTrailing) {
-                refreshBadge
-                    .padding(32)
+                if !needsSetup {
+                    refreshBadge
+                        .padding(32)
+                }
             }
             .navigationTitle("")
             .navigationDestination(for: RemixDestination.self) { destination in
                 RemixDetailContainer(path: $path, destination: destination)
             }
         }
+        .onAppear { viewModel.refreshOnboarding() }
     }
 
     private var background: some View {
@@ -40,9 +64,18 @@ struct DashboardView: View {
             Text("Memory Playground")
                 .font(.system(size: 54, weight: .bold, design: .default))
                 .foregroundStyle(.white)
-            Text("Turn your conversations into playful remixes powered by GPT-5 and Omi.")
+            Text("Turn your conversations into playful remixes powered by GPT-5.")
                 .font(.system(size: 20, weight: .medium, design: .default))
                 .foregroundStyle(.white.opacity(0.85))
+            // Hidden: Full Disk Access warning
+            // if shouldWarnAboutFullDiskAccess {
+            //     Label("Full Disk Access not confirmed — reading iMessages may fail.", systemImage: "exclamationmark.triangle.fill")
+            //         .padding(.horizontal, 18)
+            //         .padding(.vertical, 10)
+            //         .background(.orange.opacity(0.25), in: Capsule())
+            //         .foregroundStyle(.white)
+            //         .transition(.opacity)
+            // }
             if viewModel.isDemoModeEnabled {
                 Label("Demo mode active — load your iMessages + Omi transcripts to remix your life.", systemImage: "sparkles")
                     .padding(.horizontal, 18)
@@ -94,6 +127,94 @@ struct DashboardView: View {
             }
         }
         .foregroundStyle(.white)
+    }
+
+    private var fullDiskAccessWarning: some View {
+        Button {
+            openFullDiskAccessSettings()
+        } label: {
+            Label("Grant Full Disk Access via System Settings for richer data.", systemImage: "folder.badge.person.crop")
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: Capsule())
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openFullDiskAccessSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private var diagnosticsPanel: some View {
+        let diagnostics = viewModel.ingestionDiagnostics
+        print("🖥️ Dashboard diagnostics update: \(diagnostics.status)")
+        return VStack(alignment: .leading, spacing: 12) {
+            // Hidden: diagnostic messages
+            // switch diagnostics.status {
+            // case .idle:
+            //     EmptyView()
+            // case .failed(let message):
+            //     diagnosticsRow(icon: "xmark.circle.fill", color: .red, title: "Ingestion failed", subtitle: message)
+            // case .success(let count):
+            //     diagnosticsRow(icon: "checkmark.seal.fill", color: .green, title: "Loaded \(count) messages", subtitle: "Showing first \(diagnostics.sampleMessages.count) below")
+            //     samplesList(diagnostics.sampleMessages)
+            // }
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func diagnosticsRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func samplesList(_ samples: [ConversationItem]) -> some View {
+        Group {
+            if samples.isEmpty {
+                EmptyView()
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(samples.enumerated()), id: \.offset) { pair in
+                        SampleMessageRow(index: pair.offset, item: pair.element)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private struct SampleMessageRow: View {
+        let index: Int
+        let item: ConversationItem
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(index + 1). \(item.speaker)")
+                    .font(.subheadline.weight(.semibold))
+                Text(item.text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
     }
 
     private func navigate(to destination: RemixDestination) {
@@ -177,6 +298,13 @@ private struct RemixDetailContainer: View {
                         Label("Home", systemImage: "chevron.backward")
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { refreshCurrentView() }) {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                }
                 ToolbarItemGroup(placement: .primaryAction) {
                     ForEach(RemixDestination.allCases, id: \.self) { item in
                         quickLink(destination: item)
@@ -198,6 +326,21 @@ private struct RemixDetailContainer: View {
             ComicView(panels: viewModel.comicPanels)
         case .future:
             FutureYouView(message: viewModel.futureYou)
+        }
+    }
+
+    private func refreshCurrentView() {
+        switch destination {
+        case .newspaper:
+            viewModel.regenerateNewspaper()
+        case .roast:
+            viewModel.regenerateRoast()
+        case .trivia:
+            viewModel.regenerateTrivia()
+        case .comic:
+            viewModel.regenerateComic()
+        case .future:
+            viewModel.regenerateFutureYou()
         }
     }
 
