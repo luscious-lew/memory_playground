@@ -195,7 +195,6 @@ MIT License - See LICENSE file for details
 - Built for the GPT-5 Startup Hackathon NYC
 - Powered by OpenAI's GPT-5 API
 - Voice features via Omi wearable
-- Created with assistance from Claude Code
 
 ---
 
